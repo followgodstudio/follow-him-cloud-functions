@@ -1,10 +1,12 @@
 const admin = require("firebase-admin");
 admin.initializeApp();
 
-exports.modify_database = require("./modify_database");
+// exports.modify_database = require("./modify_database");
 exports.user_notifications = require("./user_notifications");
 exports.user_messages = require("./user_messages");
 exports.user_general_count = require("./user_general_count");
+exports.article_comment_count = require("./article_comment_count");
+// exports.unit_test = require("./unit_test");
 // exports.user_friends = require("./user_friends");
 //TODO: move codes below to different js file
 
@@ -16,57 +18,6 @@ db.settings(settings);
 // [END_EXCLUDE]
 
 // [START aggregate_function]
-exports.commentWriteListener = functions.firestore
-  .document("articles/{articleId}/comments/{commentId}")
-  .onWrite(async (change, context) => {
-    const articleRef = db.collection("articles").doc(context.params.articleId);
-    const commentsRef = db
-      .collection("articles")
-      .doc(context.params.articleId)
-      .collection("comments");
-
-    let commentsCount = 0;
-    await commentsRef
-      .get()
-      .then((snapShot) => {
-        commentsCount = snapShot.size;
-        return commentsCount;
-      })
-      .catch((err) => {
-        console.log(err);
-      });
-
-    // New document Created : add one to count
-    if (!change.before.exists) {
-      await db.runTransaction(async (transaction) => {
-        const articleDoc = await transaction.get(articleRef);
-        const newNumComments = articleDoc.data().comments_count
-          ? articleDoc.data().comments_count + 1
-          : commentsCount + 1;
-
-        transaction.update(articleRef, {
-          comments_count: newNumComments,
-        });
-      });
-    } else if (change.before.exists && change.after.exists) {
-      // Updating existing document : Do nothing
-    } else if (!change.after.exists) {
-      // Deleting document : subtract one from count
-
-      // db.doc(docRef).update({numberOfDocs: FieldValue.increment(-1)});
-      await db.runTransaction(async (transaction) => {
-        const articleDoc = await transaction.get(articleRef);
-        const newNumComments = articleDoc.data().comments_count
-          ? articleDoc.data().comments_count - 1
-          : commentsCount - 1;
-
-        transaction.update(articleRef, {
-          comments_count: newNumComments,
-        });
-      });
-    }
-  });
-
 exports.articleWriteListener = functions.firestore
   .document("articles/{articleId}")
   .onWrite(async (change, context) => {

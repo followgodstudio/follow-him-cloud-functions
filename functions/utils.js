@@ -12,6 +12,7 @@ exports.updateCount = async function updateCount(
     if (collectionRef) {
       await collectionRef.get().then((snapShot) => {
         accurateCount = snapShot.size;
+        return 0;
       });
     } else {
       count = 0;

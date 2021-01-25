@@ -29,6 +29,7 @@ exports.messagesCount = functions.firestore
         .collection(constants.cUserMessages);
       await messagesRef.get().then((snapShot) => {
         accurateMsgCount = snapShot.size;
+        return 0;
       });
     }
     let unreadMessagesCount = 0;
@@ -54,7 +55,7 @@ exports.messagesCount = functions.firestore
       const unreadChange =
         change.before.data()[constants.fMessageIsRead] -
         change.after.data()[constants.fMessageIsRead];
-      if (unreadChange != 0) {
+      if (unreadChange !== 0) {
         newCount[constants.fUserUnreadMsgCount] =
           unreadMessagesCount + unreadChange;
       }
@@ -68,116 +69,3 @@ exports.messagesCount = functions.firestore
         .doc(constants.dUserProfileStatistics)
         .set(newCount, { merge: true });
   });
-
-//http://localhost:5001/walkwithgod-dev/us-central1/user_messages-messagesCountTest
-exports.messagesCountTest = functions.https.onRequest(async (req, res) => {
-  // Init database
-  const userCollection = await db.collection(constants.cUsers).get();
-  const batch = db.batch();
-  userCollection.docs.forEach((doc) => {
-    batch.delete(doc.ref);
-  });
-  await batch.commit();
-  let userId;
-  let message = "";
-  await db
-    .collection(constants.cUsers)
-    .add({ test: true })
-    .then(function (docRef) {
-      userId = docRef.id;
-    });
-  const unreadCount = 3;
-  await db
-    .collection(constants.cUsers)
-    .doc(userId)
-    .collection(constants.cUserProfile)
-    .doc(constants.dUserProfileStatistics)
-    .set({ [constants.fUserUnreadMsgCount]: unreadCount }, { merge: true });
-
-  // Add a message
-  let newMessageId;
-  await db
-    .collection(constants.cUsers)
-    .doc(userId)
-    .collection(constants.cUserMessages)
-    .add({ [constants.fMessageIsRead]: false })
-    .then(function (docRef) {
-      newMessageId = docRef.id;
-    });
-
-  await new Promise((resolve) => setTimeout(resolve, 1000));
-  var querySnapshot = await db
-    .collection(constants.cUsers)
-    .doc(userId)
-    .collection(constants.cUserProfile)
-    .doc(constants.dUserProfileStatistics)
-    .get();
-  var field = querySnapshot.data();
-
-  functions.logger.log(constants.dUserProfileStatistics, field);
-  var assert = require("assert");
-  try {
-    assert(
-      field[constants.fUserUnreadMsgCount] === unreadCount + 1,
-      "Unread message count error"
-    );
-    assert(field[constants.fUserMessagesCount] === 1, "Message count error");
-  } catch (err) {
-    message += err.stack;
-  }
-
-  // Mark message as read
-  await db
-    .collection(constants.cUsers)
-    .doc(userId)
-    .collection(constants.cUserMessages)
-    .doc(newMessageId)
-    .set({ [constants.fMessageIsRead]: true });
-
-  await new Promise((resolve) => setTimeout(resolve, 1000));
-  var querySnapshot = await db
-    .collection(constants.cUsers)
-    .doc(userId)
-    .collection(constants.cUserProfile)
-    .doc(constants.dUserProfileStatistics)
-    .get();
-  var field = querySnapshot.data();
-  functions.logger.log(constants.dUserProfileStatistics, field);
-  try {
-    assert(
-      field[constants.fUserUnreadMsgCount] === unreadCount,
-      "Unread message count error"
-    );
-    assert(field[constants.fUserMessagesCount] === 1, "Message count error");
-  } catch (err) {
-    message += err.stack;
-  }
-
-  // Delete a message
-  await db
-    .collection(constants.cUsers)
-    .doc(userId)
-    .collection(constants.cUserMessages)
-    .doc(newMessageId)
-    .delete();
-
-  await new Promise((resolve) => setTimeout(resolve, 1000));
-  var querySnapshot = await db
-    .collection(constants.cUsers)
-    .doc(userId)
-    .collection(constants.cUserProfile)
-    .doc(constants.dUserProfileStatistics)
-    .get();
-  var field = querySnapshot.data();
-  functions.logger.log(constants.dUserProfileStatistics, field);
-  try {
-    assert(
-      field[constants.fUserUnreadMsgCount] === unreadCount,
-      "Unread message count error"
-    );
-    assert(field[constants.fUserMessagesCount] === 0, "Message count error");
-  } catch (err) {
-    message += err.stack;
-  }
-  res.json({ result: `Done: ${message} ` });
-});

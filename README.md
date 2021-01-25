@@ -4,6 +4,10 @@
 
 firebase emulators:start
 
+# Deploy all functions
+
+firebase deploy --only functions
+
 # Deploy one function
 
 firebase deploy --only functions:user_notifications-pushMessage
