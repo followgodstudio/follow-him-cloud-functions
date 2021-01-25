@@ -4,37 +4,180 @@ const constants = require("./constants");
 
 const db = admin.firestore();
 
-exports.newMessages = functions.firestore
+exports.messagesCount = functions.firestore
   .document(
     "/" +
       constants.cUsers +
       "/{userId}/" +
-      constants.cUserFriends +
-      "/{friendsId}"
+      constants.cUserMessages +
+      "/{messageId}"
   )
   .onWrite(async (change, context) => {
-    functions.logger.log(change.before.data());
-    // const collectionRef = db
-    //   .collection(constants.cUsers)
-    //   .doc(context.params.articleId)
-    //   .collection(constants.cUserFriends);
-    const beforeExist = change.before.exists;
-    // if (beforeExist) const before = change.before.data();
-    // const afterExist = change.after.exists;
-    // if (afterExist) const after = change.after.data();
-    // New friends: add one to count: TODO
+    const querySnapshot = await db
+      .collection(constants.cUsers)
+      .doc(context.params.userId)
+      .collection(constants.cUserProfile)
+      .doc(constants.dUserProfileStatistics)
+      .get();
+    let messagesCount, accurateMsgCount;
+    if (querySnapshot.data().hasOwnProperty(constants.fUserMessagesCount)) {
+      messagesCount = querySnapshot.data()[constants.fUserMessagesCount];
+    } else {
+      const messagesRef = db
+        .collection(constants.cUsers)
+        .doc(context.params.userId)
+        .collection(constants.cUserMessages);
+      await messagesRef.get().then((snapShot) => {
+        accurateMsgCount = snapShot.size;
+      });
+    }
+    let unreadMessagesCount = 0;
+    if (querySnapshot.data().hasOwnProperty(constants.fUserUnreadMsgCount)) {
+      unreadMessagesCount = querySnapshot.data()[constants.fUserUnreadMsgCount];
+    }
+    let newCount = {};
+    if (!change.before.exists) {
+      newCount[constants.fUserMessagesCount] = accurateMsgCount
+        ? accurateMsgCount
+        : messagesCount + 1;
+      if (!change.after.data()[constants.fMessageIsRead]) {
+        newCount[constants.fUserUnreadMsgCount] = unreadMessagesCount + 1;
+      }
+    } else if (!change.after.exists) {
+      newCount[constants.fUserMessagesCount] = accurateMsgCount
+        ? accurateMsgCount
+        : messagesCount - 1;
+      if (!change.before.data()[constants.fMessageIsRead]) {
+        newCount[constants.fUserUnreadMsgCount] = unreadMessagesCount - 1;
+      }
+    } else if (change.before.exists && change.after.exists) {
+      const unreadChange =
+        change.before.data()[constants.fMessageIsRead] -
+        change.after.data()[constants.fMessageIsRead];
+      if (unreadChange != 0) {
+        newCount[constants.fUserUnreadMsgCount] =
+          unreadMessagesCount + unreadChange;
+      }
+    }
+    functions.logger.log(newCount);
+    if (Object.keys(newCount).length > 0)
+      await db
+        .collection(constants.cUsers)
+        .doc(context.params.userId)
+        .collection(constants.cUserProfile)
+        .doc(constants.dUserProfileStatistics)
+        .set(newCount, { merge: true });
   });
 
-exports.addFollower = functions.https.onRequest(async (req, res) => {
-  // // Grab the text parameter.
-  // const original = req.query.text;
-  // Push the new message into Firestore using the Firebase Admin SDK.
-  const user = await db.collection(constants.cUsers).add({ user: "user" });
-  const friend = await db
+//http://localhost:5001/walkwithgod-dev/us-central1/user_messages-messagesCountTest
+exports.messagesCountTest = functions.https.onRequest(async (req, res) => {
+  // Init database
+  const userCollection = await db.collection(constants.cUsers).get();
+  const batch = db.batch();
+  userCollection.docs.forEach((doc) => {
+    batch.delete(doc.ref);
+  });
+  await batch.commit();
+  let userId;
+  let message = "";
+  await db
     .collection(constants.cUsers)
-    .doc(user.id)
-    .collection(constants.cUserFriends)
-    .add({ status: "follower" });
-  // Send back a message that we've successfully written the message
-  res.json({ result: `Friend with ID: ${friend.id} added.` });
+    .add({ test: true })
+    .then(function (docRef) {
+      userId = docRef.id;
+    });
+  const unreadCount = 3;
+  await db
+    .collection(constants.cUsers)
+    .doc(userId)
+    .collection(constants.cUserProfile)
+    .doc(constants.dUserProfileStatistics)
+    .set({ [constants.fUserUnreadMsgCount]: unreadCount }, { merge: true });
+
+  // Add a message
+  let newMessageId;
+  await db
+    .collection(constants.cUsers)
+    .doc(userId)
+    .collection(constants.cUserMessages)
+    .add({ [constants.fMessageIsRead]: false })
+    .then(function (docRef) {
+      newMessageId = docRef.id;
+    });
+
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+  var querySnapshot = await db
+    .collection(constants.cUsers)
+    .doc(userId)
+    .collection(constants.cUserProfile)
+    .doc(constants.dUserProfileStatistics)
+    .get();
+  var field = querySnapshot.data();
+
+  functions.logger.log(constants.dUserProfileStatistics, field);
+  var assert = require("assert");
+  try {
+    assert(
+      field[constants.fUserUnreadMsgCount] === unreadCount + 1,
+      "Unread message count error"
+    );
+    assert(field[constants.fUserMessagesCount] === 1, "Message count error");
+  } catch (err) {
+    message += err.stack;
+  }
+
+  // Mark message as read
+  await db
+    .collection(constants.cUsers)
+    .doc(userId)
+    .collection(constants.cUserMessages)
+    .doc(newMessageId)
+    .set({ [constants.fMessageIsRead]: true });
+
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+  var querySnapshot = await db
+    .collection(constants.cUsers)
+    .doc(userId)
+    .collection(constants.cUserProfile)
+    .doc(constants.dUserProfileStatistics)
+    .get();
+  var field = querySnapshot.data();
+  functions.logger.log(constants.dUserProfileStatistics, field);
+  try {
+    assert(
+      field[constants.fUserUnreadMsgCount] === unreadCount,
+      "Unread message count error"
+    );
+    assert(field[constants.fUserMessagesCount] === 1, "Message count error");
+  } catch (err) {
+    message += err.stack;
+  }
+
+  // Delete a message
+  await db
+    .collection(constants.cUsers)
+    .doc(userId)
+    .collection(constants.cUserMessages)
+    .doc(newMessageId)
+    .delete();
+
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+  var querySnapshot = await db
+    .collection(constants.cUsers)
+    .doc(userId)
+    .collection(constants.cUserProfile)
+    .doc(constants.dUserProfileStatistics)
+    .get();
+  var field = querySnapshot.data();
+  functions.logger.log(constants.dUserProfileStatistics, field);
+  try {
+    assert(
+      field[constants.fUserUnreadMsgCount] === unreadCount,
+      "Unread message count error"
+    );
+    assert(field[constants.fUserMessagesCount] === 0, "Message count error");
+  } catch (err) {
+    message += err.stack;
+  }
+  res.json({ result: `Done: ${message} ` });
 });

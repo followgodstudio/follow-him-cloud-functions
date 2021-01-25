@@ -3,6 +3,8 @@ admin.initializeApp();
 
 exports.modify_database = require("./modify_database");
 exports.user_notifications = require("./user_notifications");
+exports.user_messages = require("./user_messages");
+exports.user_general_count = require("./user_general_count");
 // exports.user_friends = require("./user_friends");
 //TODO: move codes below to different js file
 
