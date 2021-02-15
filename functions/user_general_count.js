@@ -48,3 +48,47 @@ exports.savedArticlesCount = functions.firestore
       .collection(constants.cUserSavedarticles);
     await utils.updateCount(change, docRef, fieldName, collectionRef);
   });
+
+exports.followingCount = functions.firestore
+  .document(
+    "/" +
+      constants.cUsers +
+      "/{userId}/" +
+      constants.cUserFollowings +
+      "/{friendsId}"
+  )
+  .onWrite(async (change, context) => {
+    const docRef = db
+      .collection(constants.cUsers)
+      .doc(context.params.userId)
+      .collection(constants.cUserProfile)
+      .doc(constants.dUserProfileStatistics);
+    const fieldName = constants.fUserFollowingsCount;
+    const collectionRef = db
+      .collection(constants.cUsers)
+      .doc(context.params.userId)
+      .collection(constants.cUserFollowings);
+    await utils.updateCount(change, docRef, fieldName, collectionRef);
+  });
+
+exports.followerCount = functions.firestore
+  .document(
+    "/" +
+      constants.cUsers +
+      "/{userId}/" +
+      constants.cUserFollowers +
+      "/{friendsId}"
+  )
+  .onWrite(async (change, context) => {
+    const docRef = db
+      .collection(constants.cUsers)
+      .doc(context.params.userId)
+      .collection(constants.cUserProfile)
+      .doc(constants.dUserProfileStatistics);
+    const fieldName = constants.fUserFollowersCount;
+    const collectionRef = db
+      .collection(constants.cUsers)
+      .doc(context.params.userId)
+      .collection(constants.cUserFollowers);
+    await utils.updateCount(change, docRef, fieldName, collectionRef);
+  });

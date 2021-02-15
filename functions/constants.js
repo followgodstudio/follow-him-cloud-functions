@@ -21,7 +21,8 @@ exports.cArticleComments = "comments";
 
 exports.cUserProfile = "profile";
 exports.cUserReadHistory = "read_history";
-exports.cUserFriends = "friends";
+exports.cUserFollowings = "followings";
+exports.cUserFollowers = "followers";
 exports.cUserMessages = "messages";
 exports.cUserSavedarticles = "saved_articles";
 
@@ -80,8 +81,6 @@ exports.eFriendStatusFollower = "follower";
 exports.eFriendStatusFriend = "friend";
 exports.fFriendName = "name";
 exports.fFriendImageUrl = "image_url";
-exports.fFriendFollowingDate = "following_date";
-exports.fFriendFollowerDate = "follower_date";
 
 exports.fArticleTitle = "title";
 exports.fArticleDescription = "description";

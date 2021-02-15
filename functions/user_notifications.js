@@ -1,9 +1,5 @@
 const functions = require("firebase-functions");
-const admin = require("firebase-admin");
 const constants = require("./constants");
-
-const db = admin.firestore();
-const fcm = admin.messaging();
 
 // when a new message comes, push notification to the corresponding user
 exports.pushMessage = functions.firestore
@@ -40,21 +36,5 @@ exports.pushMessage = functions.firestore
         user_id: context.params.userId,
       },
     };
-    const receiverTokensList = await db
-      .collection(constants.cUsers)
-      .doc(context.params.userId)
-      .collection(constants.cUserProfile)
-      .doc(constants.dUserProfileFbMsgToken)
-      .get();
-    tokens = [];
-    for (const token in receiverTokensList._fieldsProto) {
-      tokens.push(token);
-    }
-    functions.logger.log("tokens: ", tokens, ". payload: ", payload);
-    // Send back a message that we've successfully written the message
-    if (tokens.length > 0) {
-      return fcm.sendToDevice(tokens, payload);
-    } else {
-      return 0;
-    }
+    return await utils.pushNotification(context.params.userId, payload);
   });

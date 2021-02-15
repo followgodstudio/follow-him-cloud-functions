@@ -1,9 +1,9 @@
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
+const assert = require("assert");
 const constants = require("./constants");
 
 const db = admin.firestore();
-const fcm = admin.messaging();
 
 //http://localhost:5001/walkwithgod-dev/us-central1/unit_test-readsCountTest
 exports.readsCountTest = functions.https.onRequest(async (req, res) => {
@@ -41,7 +41,6 @@ exports.readsCountTest = functions.https.onRequest(async (req, res) => {
   var field = querySnapshot.data();
 
   functions.logger.log(constants.dUserProfileStatistics, field);
-  var assert = require("assert");
   try {
     assert(field[constants.fUserReadsCount] === 1, "Read count error");
   } catch (err) {
@@ -92,7 +91,6 @@ exports.savedArticlesCountTest = functions.https.onRequest(async (req, res) => {
   var field = querySnapshot.data();
 
   functions.logger.log(constants.dUserProfileStatistics, field);
-  var assert = require("assert");
   try {
     assert(field[constants.fUserSavedArticlesCount] === 1, "Read count error");
   } catch (err) {
@@ -117,7 +115,6 @@ exports.savedArticlesCountTest = functions.https.onRequest(async (req, res) => {
   field = querySnapshot.data();
 
   functions.logger.log(constants.dUserProfileStatistics, field);
-  assert = require("assert");
   try {
     assert(field[constants.fUserSavedArticlesCount] === 0, "Read count error");
   } catch (err) {
@@ -181,7 +178,6 @@ exports.l1CommentCountTest = functions.https.onRequest(async (req, res) => {
   var field = querySnapshot.data();
 
   functions.logger.log("l1 comment", field);
-  var assert = require("assert");
   try {
     assert(field[constants.fCommentLikesCount] === 1, "Like count error");
     assert(
@@ -225,7 +221,6 @@ exports.statisticsTest = functions.https.onRequest(async (req, res) => {
     .doc(constants.dUserProfileStatistics)
     .get();
   var field = querySnapshot.data();
-  var assert = require("assert");
   functions.logger.log(constants.dUserProfileStatistics, field);
   assert(field.testD === "TestD", "testD should equal to TestD");
   assert(field.testS === "TestS", "testS should equal to TestS");
@@ -280,7 +275,6 @@ exports.messagesCountTest = functions.https.onRequest(async (req, res) => {
   var field = querySnapshot.data();
 
   functions.logger.log(constants.dUserProfileStatistics, field);
-  var assert = require("assert");
   try {
     assert(
       field[constants.fUserUnreadMsgCount] === unreadCount + 1,
@@ -344,5 +338,133 @@ exports.messagesCountTest = functions.https.onRequest(async (req, res) => {
   } catch (err) {
     message += err.stack;
   }
+  res.json({ result: `Done: ${message} ` });
+});
+
+//http://localhost:5001/walkwithgod-dev/us-central1/unit_test-newFollowingTest
+exports.newFollowingTest = functions.https.onRequest(async (req, res) => {
+  // Clear database
+  const userCollection = await db.collection(constants.cUsers).get();
+  const batch = db.batch();
+  userCollection.docs.forEach((doc) => {
+    batch.delete(doc.ref);
+  });
+  await batch.commit();
+
+  // create following, follower user
+  let followingUserId, followerUserId;
+  await db
+    .collection(constants.cUsers)
+    .add({
+      [constants.fUserName]: "I will follow",
+      [constants.fUserImageUrl]: "http://i-will-follow",
+    })
+    .then((docRef) => {
+      followingUserId = docRef.id;
+      return 0;
+    });
+  await db
+    .collection(constants.cUsers)
+    .add({
+      [constants.fUserName]: "I am followed",
+      [constants.fUserImageUrl]: "http://i-am-followed",
+    })
+    .then((docRef) => {
+      followerUserId = docRef.id;
+      return 0;
+    });
+  // Init following count
+  await db
+    .collection(constants.cUsers)
+    .doc(followingUserId)
+    .collection(constants.cUserProfile)
+    .doc(constants.dUserProfileStatistics)
+    .set({ [constants.fUserFollowingsCount]: 1 });
+  // Add follow
+  let followingObj = {
+    [constants.fCreatedDate]: Date.now(),
+    [constants.fUserImageUrl]: "http://i-am-followed",
+    [constants.fUserName]: "I am followed",
+    [constants.fFriendStatus]: "following",
+  };
+  const followingDocRef = db
+    .collection(constants.cUsers)
+    .doc(followingUserId)
+    .collection(constants.cUserFollowings)
+    .doc(followerUserId);
+  await followingDocRef.set(followingObj);
+  await new Promise((resolve) => setTimeout(resolve, 2000));
+  let message = "";
+
+  const followerDocRef = db
+    .collection(constants.cUsers)
+    .doc(followerUserId)
+    .collection(constants.cUserFollowers)
+    .doc(followingUserId);
+  let followerDocSnap = await followerDocRef.get();
+  let followerDoc = followerDocSnap.data();
+
+  const followingCountRef = db
+    .collection(constants.cUsers)
+    .doc(followingUserId)
+    .collection(constants.cUserProfile)
+    .doc(constants.dUserProfileStatistics);
+  let followingCountSnap = await followingCountRef.get();
+  let followingCount = followingCountSnap.data();
+
+  const followerCountRef = db
+    .collection(constants.cUsers)
+    .doc(followerUserId)
+    .collection(constants.cUserProfile)
+    .doc(constants.dUserProfileStatistics);
+  let followerCountSnap = await followerCountRef.get();
+  let followerCount = followerCountSnap.data();
+  try {
+    assert(
+      followerDoc[constants.fUserName] === "I will follow",
+      "Follower list error"
+    );
+    assert(
+      followingCount[constants.fUserFollowingsCount] === 2,
+      `Followings count error, ${
+        followingCount[constants.fUserFollowingsCount]
+      }`
+    );
+    assert(
+      followerCount[constants.fUserFollowersCount] === 1,
+      `Followers count error, ${followerCount[constants.fUserFollowersCount]}`
+    );
+  } catch (err) {
+    message += err.stack;
+  }
+
+  //Remove follow
+  await followingDocRef.delete();
+  await new Promise((resolve) => setTimeout(resolve, 2000));
+
+  followerDocSnap = await followerDocRef.get();
+
+  followingCountSnap = await followingCountRef.get();
+  followingCount = followingCountSnap.data();
+
+  followerCountSnap = await followerCountRef.get();
+  followerCount = followerCountSnap.data();
+
+  try {
+    assert(!followerDocSnap.exists, "Follower list error");
+    assert(
+      followingCount[constants.fUserFollowingsCount] === 1,
+      `Followings count error, ${
+        followingCount[constants.fUserFollowingsCount]
+      }`
+    );
+    assert(
+      followerCount[constants.fUserFollowersCount] === 0,
+      `Followers count error, ${followerCount[constants.fUserFollowersCount]}`
+    );
+  } catch (err) {
+    message += err.stack;
+  }
+
   res.json({ result: `Done: ${message} ` });
 });

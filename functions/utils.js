@@ -1,3 +1,9 @@
+const functions = require("firebase-functions");
+const constants = require("./constants");
+const admin = require("firebase-admin");
+const fcm = admin.messaging();
+const db = admin.firestore();
+
 exports.updateCount = async function updateCount(
   change,
   docRef,
@@ -25,4 +31,23 @@ exports.updateCount = async function updateCount(
     newCount[fieldName] = accurateCount ? accurateCount : count - 1;
   }
   await docRef.set(newCount, { merge: true });
+};
+
+exports.pushNotification = async function pushNotification(userId, payload) {
+  const receiverTokensList = await db
+    .collection(constants.cUsers)
+    .doc(userId)
+    .collection(constants.cUserProfile)
+    .doc(constants.dUserProfileFbMsgToken)
+    .get();
+  tokens = [];
+  for (const token in receiverTokensList._fieldsProto) {
+    tokens.push(token);
+  }
+  functions.logger.log("tokens: ", tokens, ". payload: ", payload);
+  if (tokens.length > 0) {
+    return fcm.sendToDevice(tokens, payload);
+  } else {
+    return 0;
+  }
 };
