@@ -2,7 +2,6 @@ const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const constants = require("./constants");
 const utils = require("./utils");
-const { user } = require("firebase-functions/lib/providers/auth");
 
 const db = admin.firestore();
 
@@ -64,6 +63,9 @@ exports.newFollowing = functions.firestore
         notification: {
           title: followerObject[constants.fUserName] + "关注了你",
           click_action: "FLUTTER_NOTIFICATION_CLICK",
+        },
+        data: {
+          type: "newFollower",
         },
       };
       await utils.pushNotification(followerUserId, payload);

@@ -1,5 +1,6 @@
 const functions = require("firebase-functions");
 const constants = require("./constants");
+const utils = require("./utils");
 
 // when a new message comes, push notification to the corresponding user
 exports.pushMessage = functions.firestore
@@ -30,6 +31,7 @@ exports.pushMessage = functions.firestore
         click_action: "FLUTTER_NOTIFICATION_CLICK",
       },
       data: {
+        type: "message",
         article_id: comment.article_id,
         comment_id: comment.comment_id,
         message_id: context.params.messageId,
